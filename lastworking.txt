@@ -1,0 +1,800 @@
+# ============================================================
+#  ALPHAMAP ENCODING ENGINE — COMPLETE VERSION (PHASE 1 -> 4)
+# ============================================================
+
+import json
+import os
+from datetime import datetime
+from Crypto.Cipher import AES
+import base64
+
+# ------------------------------------------------------------
+# PHASE 1 — Alphabet Mapping (A -> 01, B -> 02… Z -> 26)
+# ------------------------------------------------------------
+
+alphabet = "abcdefghijklmnopqrstuvwxyz"
+alpha_to_num = {alphabet[i]: f"{i+1:02d}" for i in range(26)}
+num_to_alpha = {v: k for k, v in alpha_to_num.items()}
+
+
+def encode_letter(letter: str) -> str:
+    letter = letter.lower()
+    if letter not in alpha_to_num:
+        raise ValueError(f"Unsupported character: {letter}")
+    return alpha_to_num[letter]
+
+
+def decode_letter(code: str) -> str:
+    if code not in num_to_alpha:
+        raise ValueError(f"Invalid code: {code}")
+    return num_to_alpha[code]
+
+
+def encode_word(word: str) -> str:
+    return "".join(encode_letter(c) for c in word.lower())
+
+
+def decode_word(encoded: str) -> str:
+    if len(encoded) % 2 != 0:
+        raise ValueError("Encoded word must have even number of digits.")
+
+    return "".join(
+        decode_letter(encoded[i:i+2])
+        for i in range(0, len(encoded), 2)
+    )
+
+
+# ------------------------------------------------------------
+# PHASE 2 — Word-Level Compression (Top 50 English words)
+# ------------------------------------------------------------
+
+common_words = [
+    "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+    "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+    "this", "but", "his", "by", "from", "they", "we", "say", "her", "she",
+    "or", "an", "will", "my", "one", "all", "would", "there", "their",
+    "am", "are", "is", "was", "were", "been", "if", "so", "me"
+]
+
+word_to_code = {word: f"W{i+1:03d}" for i, word in enumerate(common_words)}
+code_to_word = {v: k for k, v in word_to_code.items()}
+
+
+def encode_word_advanced(word: str) -> str:
+    w = word.lower()
+
+    if w in word_to_code:  # Built-in dictionary
+        return word_to_code[w]
+
+    return encode_word(w)  # fallback to letter-encoding
+
+
+def decode_word_advanced(encoded: str) -> str:
+    if encoded.startswith("W"):
+        return code_to_word.get(encoded, f"[UNKNOWN:{encoded}]")
+
+    return decode_word(encoded)
+
+
+# ------------------------------------------------------------
+# PHASE 3 — Phrase-Level Compression
+# ------------------------------------------------------------
+
+common_phrases = [
+    "i am",
+    "thank you",
+    "good morning",
+    "how are you",
+    "see you soon",
+    "i love you",
+    "let us go",
+    "what is this",
+]
+
+phrase_to_code = {phrase: f"P{i+1:03d}" for i, phrase in enumerate(common_phrases)}
+code_to_phrase = {v: k for k, v in phrase_to_code.items()}
+
+
+def encode_phrase(sentence: str) -> str:
+    s = sentence.lower()
+
+    # Replace trigrams first
+    for phrase, code in auto_tri_to_code.items():
+        s = s.replace(phrase, code)
+
+    # Then bigrams
+    for phrase, code in auto_phrase_to_code.items():
+        s = s.replace(phrase, code)
+
+    # Then manual phrases
+    for phrase, code in phrase_to_code.items():
+        s = s.replace(phrase, code)
+
+    return s
+
+
+def decode_phrase(sentence: str) -> str:
+    decoded = sentence
+
+    # Auto trigram phrases first (to avoid conflicts)
+    for code, phrase in auto_code_to_tri.items():
+        decoded = decoded.replace(code, phrase)
+
+    # Auto bigram phrases
+    for code, phrase in auto_code_to_phrase.items():
+        decoded = decoded.replace(code, phrase)
+
+    # Static phrases
+    for code, phrase in code_to_phrase.items():
+        decoded = decoded.replace(code, phrase)
+
+    return decoded
+
+
+# ------------------------------------------------------------
+# PHASE 4 — Dynamic Dictionary Learning (Custom Words)
+# ------------------------------------------------------------
+
+CUSTOM_DICT_FILE = "custom_words.json"
+
+# Load existing dictionary
+if os.path.exists(CUSTOM_DICT_FILE):
+    with open(CUSTOM_DICT_FILE, "r") as f:
+        custom_word_to_code = json.load(f)
+else:
+    custom_word_to_code = {}
+
+custom_code_to_word = {v: k for k, v in custom_word_to_code.items()}
+
+# ------------------------------------------------------------
+# PHASE A1 — Bigram Frequency Tracking & Auto-Phrase Learning
+# ------------------------------------------------------------
+
+# Step A1.1: Storage for bigram stats
+bigram_frequency = {}
+AUTO_PHRASE_LIMIT = 20  # Keep top 20 bigrams
+
+# Step A1.2: Extract bigrams from a sentence
+def extract_bigrams(words):
+    bigrams = []
+    for i in range(len(words) - 1):
+        bigrams.append(words[i] + " " + words[i+1])
+    return bigrams
+
+# Step A1.3: Update bigram frequency table
+def record_bigrams(sentence):
+    words = sentence.lower().split()
+    bigrams = extract_bigrams(words)
+
+    for bg in bigrams:
+        bigram_frequency[bg] = bigram_frequency.get(bg, 0) + 1
+
+# Step A1.4: Pick the top-N bigrams
+def get_top_bigrams():
+    sorted_pairs = sorted(
+        bigram_frequency.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+    return [bg for bg, count in sorted_pairs[:AUTO_PHRASE_LIMIT]]
+
+# Step A1.5: Assign phrase codes for auto-learned bigrams
+AUTO_PHRASE_START = 900
+auto_phrase_to_code = {}
+auto_code_to_phrase = {}
+
+def update_auto_phrases():
+    top_bigram_list = get_top_bigrams()
+    auto_phrase_to_code.clear()
+    auto_code_to_phrase.clear()
+
+    for i, phrase in enumerate(top_bigram_list):
+        code = f"P{AUTO_PHRASE_START + i}"
+        auto_phrase_to_code[phrase] = code
+        auto_code_to_phrase[code] = phrase
+
+# ------------------------------------------------------------
+# PHASE A2 — Trigram Frequency Tracking & Auto-Phrase Learning
+# ------------------------------------------------------------
+
+# Step A2.1: Trigram storage
+trigram_frequency = {}
+AUTO_TRIGRAM_LIMIT = 20
+AUTO_TRIGRAM_START = 950
+auto_tri_to_code = {}
+auto_code_to_tri = {}
+
+# Step A2.2: Extract trigrams
+def extract_trigrams(words):
+    trigrams = []
+    for i in range(len(words) - 2):
+        trigrams.append(words[i] + " " + words[i+1] + " " + words[i+2])
+    return trigrams
+
+# Step A2.3: Record trigram frequencies
+def record_trigrams(sentence):
+    words = sentence.lower().split()
+    trigrams = extract_trigrams(words)
+
+    for tg in trigrams:
+        trigram_frequency[tg] = trigram_frequency.get(tg, 0) + 1
+
+# Step A2.4: Top trigram selection
+def get_top_trigrams():
+    sorted_tris = sorted(
+        trigram_frequency.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+    return [tri for tri, count in sorted_tris[:AUTO_TRIGRAM_LIMIT]]
+
+# Step A2.5: Assign trigram codes
+def update_auto_trigrams():
+    auto_tri_to_code.clear()
+    auto_code_to_tri.clear()
+
+    top_trigrams = get_top_trigrams()
+
+    for i, tri in enumerate(top_trigrams):
+        code = f"P{AUTO_TRIGRAM_START + i}"
+        auto_tri_to_code[tri] = code
+        auto_code_to_tri[code] = tri
+
+# ------------------------------------------------------------
+# PHASE A3 — Frequency-Based Word Dictionary Learning
+# ------------------------------------------------------------
+
+# Step A3.1: Word frequency table
+word_frequency = {}
+REBUILD_INTERVAL = 10
+encode_counter = 0
+
+# Step A3.2: Update frequency during encode (handled in encode_sentence)
+
+# Step A3.3: Get ranked words
+def get_ranked_words():
+    return sorted(word_frequency.items(), key=lambda x: x[1], reverse=True)
+
+# Step A3.4: Rebuild dictionary based on frequency
+def rebuild_word_dictionary():
+    global word_to_code, code_to_word
+
+    ranked = get_ranked_words()
+    word_to_code.clear()
+    code_to_word.clear()
+
+    for i, (word, freq) in enumerate(ranked):
+        code = f"W{str(i+1).zfill(3)}"
+        word_to_code[word] = code
+        code_to_word[code] = word
+
+# ------------------------------------------------------------
+# PHASE A4 — Casing Preservation System
+# ------------------------------------------------------------
+
+# Step A4.1: Detect casing pattern
+def detect_case(word):
+    if word.isupper():
+        return "C2"     # UPPERCASE
+    elif word[0].isupper() and word[1:].islower():
+        return "C1"     # Title Case
+    elif word.islower():
+        return "C3"     # lowercase
+    else:
+        return "C4"     # Mixed Case
+
+# Step A4.2: Apply casing back
+def apply_case(word, case_code):
+    if case_code == "C1":
+        return word.capitalize()
+    elif case_code == "C2":
+        return word.upper()
+    elif case_code == "C3":
+        return word.lower()
+    else:
+        return word  # mixed case not fully reversible
+
+
+def save_custom_dictionary():
+    with open(CUSTOM_DICT_FILE, "w") as f:
+        json.dump(custom_word_to_code, f, indent=4)
+
+
+def learn_new_word(word: str) -> str:
+    word = word.lower()
+
+    # Already exists?
+    if word in custom_word_to_code:
+        return custom_word_to_code[word]
+
+    # Next code AFTER built-in dictionary
+    new_code_number = len(common_words) + len(custom_word_to_code) + 1
+    new_code = f"W{new_code_number:03d}"
+
+    # Save both directions
+    custom_word_to_code[word] = new_code
+    custom_code_to_word[new_code] = word
+    save_custom_dictionary()
+
+    return new_code
+
+
+def encode_word_smart(word: str) -> str:
+    word = word.lower()
+
+    # 1. Built-in dictionary
+    if word in word_to_code:
+        return word_to_code[word]
+
+    # 2. Custom dictionary
+    if word in custom_word_to_code:
+        return custom_word_to_code[word]
+
+    # 3. Learn new word & assign code
+    return learn_new_word(word)
+
+
+def decode_word_smart(code: str) -> str:
+    if code.startswith("W"):
+
+        # Built-in dictionary
+        if code in code_to_word:
+            return code_to_word[code]
+
+        # Custom dictionary
+        if code in custom_code_to_word:
+            return custom_code_to_word[code]
+
+        return f"[UNKNOWN:{code}]"
+
+    # fallback to letter-decoding
+    return decode_word_advanced(code)
+
+# --------------------
+# AlphaMap Encoding Engine - Phase 5
+# Full Sentence Encoding
+# --------------------
+
+def encode_sentence(sentence: str) -> list:
+    """High-speed optimized tokenizer with local variable caching."""
+    
+    global encode_counter
+
+    words = sentence.split()
+    wlen = len(words)
+    i = 0
+
+    # local references (faster than globals)
+    tri_map = auto_tri_to_code
+    bi_map = auto_phrase_to_code
+    word_map = word_to_code
+    custom_map = custom_word_to_code
+
+    tokens = []
+
+    # update frequencies
+    record_bigrams(sentence)
+    record_trigrams(sentence)
+    update_auto_phrases()
+    update_auto_trigrams()
+
+    for w in words:
+        lw = w.lower()
+        word_frequency[lw] = word_frequency.get(lw, 0) + 1
+
+    # main loop
+    while i < wlen:
+
+        # Trigram fast check
+        if i + 2 < wlen:
+            tri_key = f"{words[i].lower()} {words[i+1].lower()} {words[i+2].lower()}"
+            tri_token = tri_map.get(tri_key)
+            if tri_token:
+                tokens.append(tri_token)
+                i += 3
+                continue
+
+        # Bigram fast check
+        if i + 1 < wlen:
+            bi_key = f"{words[i].lower()} {words[i+1].lower()}"
+            bi_token = bi_map.get(bi_key)
+            if bi_token:
+                tokens.append(bi_token)
+                i += 2
+                continue
+
+        # Word-level check
+        lw = words[i].lower()
+        if lw in word_map:
+            tokens.append(word_map[lw])
+        elif lw in custom_map:
+            tokens.append(custom_map[lw])
+        else:
+            tokens.append(encode_word_smart(lw))
+
+        i += 1
+
+    # dictionary optimization every N encodes
+    encode_counter += 1
+    if encode_counter % REBUILD_INTERVAL == 0:
+        rebuild_word_dictionary()
+
+    return tokens
+
+# --------------------
+# AlphaMap Encoding Engine - Phase 6
+# Full Sentence Decoding
+# --------------------
+
+def decode_sentence(encoded_list: list) -> str:
+    """Reverse pipeline: phrase decode + word decode + letter decode."""
+
+    decoded_words = []
+
+    for item in encoded_list:
+        # Step 1: Phrase decode (P###)
+        if item.startswith("P"):
+            # Check auto trigrams first
+            if item in auto_code_to_tri:
+                decoded_words.append(auto_code_to_tri[item])
+            # Then auto bigrams
+            elif item in auto_code_to_phrase:
+                decoded_words.append(auto_code_to_phrase[item])
+            else:
+                decoded_words.append(code_to_phrase.get(item, f"[UNKNOWN:{item}]"))
+            continue
+
+        # Step 2: Word dictionary decode (W###)
+        if item.startswith("W"):
+            decoded_words.append(decode_word_smart(item))
+            continue
+
+        # Step 3: Letter-based decode
+        decoded_words.append(decode_word_advanced(item))
+
+    # Step 4: Join everything into a full sentence
+    return " ".join(decoded_words)
+
+
+# --------------------
+# AlphaMap Encoding Engine - Phase 7
+# Paragraph Encoding + .alpha File Storage
+# --------------------
+
+
+def encode_paragraph(paragraph: str) -> list:
+    """Encodes multi-sentence paragraphs into a token list."""
+    
+    # Split by spaces
+    words = paragraph.split()
+
+    encoded_tokens = []
+
+    # Apply phrase compression first
+    compressed = encode_phrase(paragraph)
+
+    # Split again
+    parts = compressed.split()
+
+    for part in parts:
+        if part.startswith("P"):
+            encoded_tokens.append(part)
+        else:
+            encoded_tokens.append(encode_word_smart(part))
+
+    return encoded_tokens
+
+
+
+def save_alpha_file(paragraph: str, filename: str, aes_key: str):
+    encoded_tokens = encode_sentence(paragraph)
+
+    alpha_data = {
+        "version": "1.0",
+        "tokens": encoded_tokens,
+        "custom_dict": custom_word_to_code
+    }
+
+    raw_json = json.dumps(alpha_data)
+    encrypted = aes_encrypt(raw_json, aes_key)
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(encrypted)
+
+    print(f"Secure AES-256 AlphaMap saved to {filename}")
+
+
+
+
+
+def load_alpha_file(filename: str, aes_key: str) -> str:
+    with open(filename, "r", encoding="utf-8") as f:
+        encrypted_text = f.read()
+
+    decrypted_json = aes_decrypt(encrypted_text, aes_key)
+    data = json.loads(decrypted_json)
+
+    global custom_word_to_code, custom_code_to_word
+    custom_word_to_code = data["custom_dict"]
+    custom_code_to_word = {v: k for k, v in custom_word_to_code.items()}
+
+    return decode_sentence(data["tokens"])
+
+
+# --------------------
+# AlphaMap Encoding Engine - Phase 8
+# Compact Token Format
+# --------------------
+
+def compress_token(token: str) -> str:
+    """Convert tokens like P001 -> 1001, W050 -> 2050."""
+    
+    # Phrase token (P###)
+    if token.startswith("P"):
+        return "1" + token[1:]   # P001 -> 1001
+    
+    # Word token (W###)
+    if token.startswith("W"):
+        return "2" + token[1:]   # W050 -> 2050
+    
+    # Otherwise letter-encoded -> keep raw
+    return token
+
+
+def decompress_token(comp: str) -> str:
+    """Reverse compact format: 1001 -> P001"""
+    
+    if comp.startswith("1"):
+        return "P" + comp[1:]
+    
+    if comp.startswith("2"):
+        return "W" + comp[1:]
+    
+    return comp  # Raw letter-encoded
+
+# --------------------
+# AlphaMap Encoding Engine - Phase 9
+# XOR Encryption for .alpha files
+# --------------------
+
+def xor_encrypt(text: str, key: int) -> str:
+    """Encrypt text using XOR with a single-byte key."""
+    return "".join(chr(ord(c) ^ key) for c in text)
+
+
+def xor_decrypt(text: str, key: int) -> str:
+    """Decrypt XOR text."""
+    return "".join(chr(ord(c) ^ key) for c in text)
+
+# --------------------
+# AlphaMap Encryption - AES-256 (Secure)
+# --------------------
+
+
+def pad_data(data: bytes) -> bytes:
+    """PKCS7 padding for AES."""
+    padding = 16 - len(data) % 16
+    return data + bytes([padding]) * padding
+
+def unpad_data(data: bytes) -> bytes:
+    """Remove PKCS7 padding."""
+    padding = data[-1]
+    return data[:-padding]
+
+def aes_encrypt(raw_text: str, key: str) -> str:
+    """Encrypt text using AES-256 CBC."""
+    
+    # Key must be 32 bytes
+    key_bytes = key.encode("utf-8")
+    if len(key_bytes) != 32:
+        raise ValueError("AES key must be EXACTLY 32 bytes long.")
+
+    iv = os.urandom(16)  # Random IV for each file
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv)
+
+    raw_bytes = raw_text.encode("utf-8")
+    padded = pad_data(raw_bytes)
+
+    encrypted_bytes = cipher.encrypt(padded)
+    result = iv + encrypted_bytes
+
+    return base64.b64encode(result).decode("utf-8")
+
+def aes_decrypt(encoded_text: str, key: str) -> str:
+    """Decrypt AES-256 encrypted text."""
+    
+    key_bytes = key.encode("utf-8")
+    if len(key_bytes) != 32:
+        raise ValueError("AES key must be EXACTLY 32 bytes long.")
+
+    raw = base64.b64decode(encoded_text)
+    iv = raw[:16]
+    encrypted_bytes = raw[16:]
+
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv)
+    decrypted = cipher.decrypt(encrypted_bytes)
+
+    unpadded = unpad_data(decrypted)
+
+    return unpadded.decode("utf-8")
+
+
+# ------------------------------------------------------------
+# TESTING ALL PHASES
+# ------------------------------------------------------------
+
+print("---- PHASE 1 TEST ----")
+print("Encode 'ram':", encode_word("ram"))
+print("Decode '180113':", decode_word("180113"))
+
+print("\n---- PHASE 2 TEST ----")
+print("Encode 'am':", encode_word_smart("am"))
+print("Encode 'hello':", encode_word_smart("hello"))
+
+print("\n---- PHASE 3 TEST ----")
+test_sentence = "I am going to say thank you"
+p = encode_phrase(test_sentence)
+print("Phrase Encoded:", p)
+print("Phrase Decoded:", decode_phrase(p))
+
+print("\n---- PHASE 4 TEST ----")
+print("Learning new word 'shre':", encode_word_smart("shre"))
+print("Learning new word 'raam':", encode_word_smart("raam"))
+print("Decode custom code:", decode_word_smart(encode_word_smart("shre")))
+
+print("---- PHASE 5 TEST ----")
+sentence = "I am Shre Raam and thank you"
+encoded = encode_sentence(sentence)
+print("Encoded Sentence:", encoded)
+
+print("---- PHASE 6 TEST ----")
+
+sentence = "I am shre raam and thank you"
+encoded = encode_sentence(sentence)
+decoded = decode_sentence(encoded)
+
+print("Original Sentence:", sentence)
+print("Encoded:", encoded)
+print("Decoded Sentence:", decoded)
+
+print("---- PHASE 7 TEST ----")
+
+paragraph = "I am shre raam and thank you for helping me with this project"
+key = "1234567890abcdef1234567890abcdef"   # must be 32 chars
+
+save_alpha_file(paragraph, "test.alpha", key)
+decoded_text = load_alpha_file("test.alpha", key)
+
+print("Decoded Paragraph:", decoded_text)
+
+print("---- PHASE 8 TEST ----")
+
+encoded = encode_sentence("I am shre raam and thank you")
+
+compact_tokens = [compress_token(t) for t in encoded]
+print("Compact Tokens:", compact_tokens)
+
+# Now decompress -> decode sentence
+decompressed_tokens = [decompress_token(t) for t in compact_tokens]
+decoded = decode_sentence(decompressed_tokens)
+print("Decoded from compact:", decoded)
+
+print("---- PHASE 9 TEST ----")
+
+aes_key = "1234567890abcdef1234567890abcdef"   # 32 bytes
+
+paragraph = "Shre Raam is building the AlphaMap engine"
+save_alpha_file(paragraph, "secure.alpha", aes_key)
+
+decoded = load_alpha_file("secure.alpha", aes_key)
+print("Decoded:", decoded)
+
+print("---- AES TEST ----")
+
+paragraph = "This is a secure AlphaMap test for JASS Lock"
+save_alpha_file(paragraph, "secure_aes.alpha", aes_key)
+
+decoded = load_alpha_file("secure_aes.alpha", aes_key)
+print("Decoded:", decoded)
+
+print("\n---- PHASE A1 TEST - Bigram Frequency Tracking ----")
+
+# Test sentences with repeated bigrams
+test_sentences = [
+    "I love to code and I love to learn",
+    "the quick brown fox jumps over the lazy dog",
+    "the quick brown cat jumps over the lazy mouse",
+    "machine learning is fun and machine learning is powerful"
+]
+
+print("Encoding sentences and building bigram frequency...")
+for i, sentence in enumerate(test_sentences, 1):
+    print(f"\nSentence {i}: {sentence}")
+    encoded = encode_sentence(sentence)
+    decoded = decode_sentence(encoded)
+    print(f"Encoded: {encoded}")
+    print(f"Decoded: {decoded}")
+
+print(f"\nTop {AUTO_PHRASE_LIMIT} Bigrams:")
+top_bigrams = get_top_bigrams()
+for i, bigram in enumerate(top_bigrams, 1):
+    count = bigram_frequency[bigram]
+    print(f"{i}. '{bigram}' (count: {count})")
+
+print("\nAuto-phrase mappings:")
+for phrase, code in auto_phrase_to_code.items():
+    print(f"'{phrase}' -> {code}")
+
+print("\n---- Testing auto-phrase encoding ----")
+test_sentence = "I love machine learning and machine learning is fun"
+print(f"Original: {test_sentence}")
+encoded = encode_sentence(test_sentence)
+decoded = decode_sentence(encoded)
+print(f"Encoded: {encoded}")
+print(f"Decoded: {decoded}")
+
+print("---- A1 TEST: Bigram Auto-Learning ----")
+
+# Clear bigram frequency to show fresh learning
+bigram_frequency.clear()
+auto_phrase_to_code.clear()
+auto_code_to_phrase.clear()
+
+paragraph = "good morning shre raam good morning my friend good morning to you"
+encoded = encode_sentence(paragraph)
+print("Encoded:", encoded)
+
+print("Auto Phrases Learned:", auto_phrase_to_code)
+print("Bigram Frequencies:", bigram_frequency)
+
+print("\n---- A2 TEST: Trigram Auto-Learning ----")
+
+# Clear trigram frequency to show fresh learning
+trigram_frequency.clear()
+auto_tri_to_code.clear()
+auto_code_to_tri.clear()
+
+paragraph = "how are you today how are you doing my friend how are you again"
+encoded = encode_sentence(paragraph)
+
+print("Encoded:", encoded)
+print("Auto-Trigrams:", auto_tri_to_code)
+print("Trigram Frequencies:", trigram_frequency)
+
+print("\n---- A3 TEST: Frequency Dictionary ----")
+
+# Clear word frequency to show fresh learning
+word_frequency.clear()
+encode_counter = 0
+
+text = """
+i love coding and i love python because i love solving problems
+"""
+
+encoded = encode_sentence(text)
+print("Word Frequency:", word_frequency)
+print("Dictionary:", word_to_code)
+print("Encoded:", encoded)
+
+print("\n---- A4 TEST: Casing ----")
+
+text = "Shre RAAM is Amazing"
+encoded = encode_sentence(text)
+decoded = decode_sentence(encoded)
+
+print("Original:", text)
+print("Encoded:", encoded)
+print("Decoded:", decoded)
+
+print("\n---- A5 TEST Multi-Phrase ----")
+
+paragraph = "how are you today how are you doing how are you again"
+
+encoded = encode_sentence(paragraph)
+decoded = decode_sentence(encoded)
+
+print("Encoded:", encoded)
+print("Decoded:", decoded)
+print("Auto-Trigrams:", auto_tri_to_code)
+print("Auto-Bigrams:", auto_phrase_to_code)
+
