@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alphamap"
+version = "0.2.0"
+description = "Adaptive hybrid compression engine with AES-GCM authenticated encryption"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "pycryptodome>=3.18",
+    "click>=8.0",
+]
+# brotli is optional — install with: pip install alphamap[brotli]
+keywords = ["compression", "encryption", "aes", "text", "adaptive", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Archiving :: Compression",
+]
+
+[project.optional-dependencies]
+brotli = ["brotli>=1.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "brotli>=1.0",
+]
+
+[project.scripts]
+alphamap = "alphamap.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USERNAME/alphamap"
+Issues   = "https://github.com/YOUR_USERNAME/alphamap/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["alphamap*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
