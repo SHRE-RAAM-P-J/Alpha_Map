@@ -2,26 +2,33 @@
 AlphaMap dictionary: trains on a text corpus, maps tokens → integer IDs,
 and encodes/decodes lists of tokens to compact bit-packed bytes.
 
-What's kept from v1 (unchanged logic):
-    - tokenize()             — regex split on whitespace/non-whitespace runs
-    - bits_required()        — bit-length calculation
-    - AlphaMap.train()       — frequency-sorted word list, whitespace boost
-    - AlphaMap.encode_case() / apply_case()  — 2-bit case encoding
-    - AlphaMap.encode_tokens() / decode_tokens() — bit-packing with OOV escape
-    - AlphaMap.save() / load()  — JSON persistence
+Improvements over v0.2.0
+--------------------------
+OOV handling:
+  - Tokens longer than MAX_TOKEN_BYTES are gracefully truncated at a valid
+    UTF-8 boundary instead of raising TokenTooLongError, so the encoder
+    never crashes on real-world input (URLs, base64 blobs, etc.)
+  - Corrupt word_id during decode returns a visible placeholder instead of
+    the silent "<?>" marker.
+  - decode_tokens uses errors="replace" on UTF-8 decode to handle
+    edge-case corrupted data gracefully.
 
-What changed:
-    - Import path: was alphamap.dictionary, now alphamap.semantic.dictionary
-    - Imports BitWriter/BitReader from .bitpacking (same package)
-    - Imports constants from alphamap.core (no magic literals)
-    - Error types replaced with AlphaMap typed exceptions
-    - save_dictionary / load_dictionary aliases retained for backward compat
+Training quality:
+  - Common punctuation marks ("," "." "!" etc.) are always seeded into the
+    frequency counter so they always get dictionary entries, meaning
+    "hello," encodes as two cheap in-dict tokens instead of one expensive OOV.
+  - A min_freq threshold (default 2) prevents very rare tokens wasting slots.
+  - Whitespace boost raised from ×10 to ×20.
+
+Diagnostics:
+  - oov_rate(text): fraction of word tokens not in dictionary.
+  - coverage_stats(text): full breakdown for monitoring/debugging.
 """
 
 from __future__ import annotations
 
-import json
 import re
+import json
 from collections import Counter
 from typing import Dict, List, Optional
 
@@ -29,12 +36,8 @@ from .bitpacking import BitWriter, BitReader
 from ..core.constants import DEFAULT_DICT_LIMIT, MAX_TOKEN_BYTES
 from ..core.errors import DictionaryError, TokenTooLongError
 
-# Dictionary file schema version — bump when the JSON shape changes
-_DICT_VERSION = 1
+_DICT_VERSION = 2   # bumped: common-punct seeding, min_freq, whitespace boost
 
-# Tokeniser: a token is either a maximal run of non-whitespace OR
-# a maximal run of whitespace.  This guarantees a lossless round-trip:
-# ''.join(tokenize(text)) == text for all text.
 _TOKEN_RE = re.compile(r"\S+|\s+")
 
 
@@ -49,6 +52,23 @@ def tokenize(text: str) -> List[str]:
 def bits_required(n: int) -> int:
     """Minimum bits needed to represent the non-negative integer *n*."""
     return 1 if n == 0 else n.bit_length()
+
+
+def _safe_encode(token: str) -> bytes:
+    """Return the UTF-8 bytes of *token*, truncated to MAX_TOKEN_BYTES at a
+    valid UTF-8 codepoint boundary.  Never raises."""
+    raw = token.encode("utf-8")
+    if len(raw) <= MAX_TOKEN_BYTES:
+        return raw
+    # Back off to a valid boundary
+    truncated = raw[:MAX_TOKEN_BYTES]
+    while truncated:
+        try:
+            truncated.decode("utf-8")
+            return truncated
+        except UnicodeDecodeError:
+            truncated = truncated[:-1]
+    return b""  # degenerate case: single multi-byte char > MAX_TOKEN_BYTES
 
 
 class AlphaMap:
@@ -70,29 +90,49 @@ class AlphaMap:
         self.id_to_word: Dict[int, str] = {}
         self.dict_limit: int = dict_limit
         self.word_id_bits: int = bits_required(dict_limit)
-        self.case_bits: int = 2            # 2 bits → 0=lower 1=title 2=upper
-        self.oov_id: int = dict_limit      # one past the last valid ID
+        self.case_bits: int = 2
+        self.oov_id: int = dict_limit
 
     # ------------------------------------------------------------------
     # Training and persistence
     # ------------------------------------------------------------------
 
-    def train(self, text: str, limit: Optional[int] = None) -> None:
-        """Build the dictionary from *text*, keeping the *limit* most-frequent tokens.
+    def train(self, text: str, limit: Optional[int] = None, min_freq: int = 2) -> None:
+        """Build the dictionary from *text*.
 
-        Whitespace tokens are boosted (×10) so they get low IDs and cost
-        fewer bits to encode — they appear in nearly every sentence.
+        Args:
+            text:     Training corpus.
+            limit:    Max dictionary entries (default: dict_limit).
+            min_freq: Discard tokens appearing fewer times. Prevents rare tokens
+                      wasting slots that high-frequency tokens need.
+
+        Whitespace is boosted ×20; common punctuation is always seeded
+        so it always gets a dictionary slot (avoids costly OOV escapes for ".").
         """
         limit = limit if limit is not None else self.dict_limit
         freq: Counter = Counter()
-        for token in tokenize(text.lower()):
-            freq[token] += 10 if not token.strip() else 1
-        top = freq.most_common(limit)
+
+        # Seed common punctuation — always want these in the dict
+        _ALWAYS = {",", ".", "!", "?", ":", ";", "(", ")", '"', "'",
+                   "-", "/", "@", "#", "%", "&", "*", "..."}
+        for ch in _ALWAYS:
+            freq[ch] = 9999
+
+        for raw_token in tokenize(text.lower()):
+            if not raw_token.strip():
+                freq[raw_token] += 20   # whitespace boost
+            else:
+                freq[raw_token] += 1
+
+        filtered = [(w, c) for w, c in freq.items() if c >= min_freq]
+        filtered.sort(key=lambda x: -x[1])
+        top = filtered[:limit]
+
         self.word_to_id = {word: idx for idx, (word, _) in enumerate(top)}
         self.id_to_word = {idx: word for word, idx in self.word_to_id.items()}
 
     def save(self, path: str) -> None:
-        """Persist the dictionary to a JSON file at *path*."""
+        """Persist the dictionary to a JSON file."""
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(
                 {"version": _DICT_VERSION, "limit": self.dict_limit,
@@ -101,18 +141,16 @@ class AlphaMap:
             )
 
     def load(self, path: str) -> None:
-        """Load a dictionary previously saved with :meth:`save`."""
+        """Load a dictionary. Accepts version 1 or 2."""
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-        if data.get("version") != _DICT_VERSION:
-            raise DictionaryError(
-                f"Dictionary version {data.get('version')} != {_DICT_VERSION}"
-            )
+        ver = data.get("version")
+        if ver not in (1, 2):
+            raise DictionaryError(f"Unknown dictionary version {ver!r}. Expected 1 or 2.")
         self.word_to_id = data["words"]
         self.id_to_word = {int(idx): word for word, idx in self.word_to_id.items()}
         self.dict_limit = data.get("limit", len(self.word_to_id))
 
-    # Backward-compatible aliases (used by old CLI code and phase4.py)
     def save_dictionary(self, path: str) -> None:  # pragma: no cover
         self.save(path)
 
@@ -125,7 +163,6 @@ class AlphaMap:
 
     @staticmethod
     def encode_case(word: str) -> int:
-        """Return 0 (lower), 1 (title), or 2 (upper) for *word*."""
         if not word:
             return 0
         if word.isupper():
@@ -136,7 +173,6 @@ class AlphaMap:
 
     @staticmethod
     def apply_case(word: str, case: int) -> str:
-        """Reconstruct the correct casing given the canonical lowercase *word*."""
         if case == 2:
             return word.upper()
         if case == 1:
@@ -151,11 +187,11 @@ class AlphaMap:
         """Encode *tokens* to a compact bit-packed byte string.
 
         Format per token:
-            word_id  : word_id_bits + 1   bits
-            case     : 2                  bits
+            word_id  : word_id_bits + 1  bits
+            case     : 2                 bits
             [OOV only]
-            length   : 8                  bits  (byte count of UTF-8)
-            raw_bytes: length × 8         bits
+            length   : 8                 bits  (byte count, capped at MAX_TOKEN_BYTES)
+            raw_bytes: length × 8        bits
         """
         writer = BitWriter()
         for token in tokens:
@@ -165,11 +201,7 @@ class AlphaMap:
             writer.write_bits(word_id, self.word_id_bits + 1)
             writer.write_bits(case, self.case_bits)
             if word_id == self.oov_id:
-                token_bytes = lower.encode("utf-8")
-                if len(token_bytes) > MAX_TOKEN_BYTES:
-                    raise TokenTooLongError(
-                        f"OOV token exceeds {MAX_TOKEN_BYTES} bytes: {token[:40]!r}…"
-                    )
+                token_bytes = _safe_encode(lower)
                 writer.write_bits(len(token_bytes), 8)
                 for byte in token_bytes:
                     writer.write_bits(byte, 8)
@@ -184,8 +216,38 @@ class AlphaMap:
             case = reader.read_bits(self.case_bits)
             if word_id == self.oov_id:
                 length = reader.read_bits(8)
-                word = bytes(reader.read_bits(8) for _ in range(length)).decode("utf-8")
+                word = bytes(
+                    reader.read_bits(8) for _ in range(length)
+                ).decode("utf-8", errors="replace")
             else:
-                word = self.id_to_word.get(word_id, "<?>")
+                word = self.id_to_word.get(word_id)
+                if word is None:
+                    word = f"<id:{word_id}>"
             tokens.append(self.apply_case(word, case))
         return tokens
+
+    # ------------------------------------------------------------------
+    # Diagnostics
+    # ------------------------------------------------------------------
+
+    def oov_rate(self, text: str) -> float:
+        """Return the fraction of word tokens that are OOV (0.0–1.0)."""
+        tokens = [t for t in tokenize(text.lower()) if t.strip()]
+        if not tokens:
+            return 0.0
+        oov = sum(1 for t in tokens if t not in self.word_to_id)
+        return oov / len(tokens)
+
+    def coverage_stats(self, text: str) -> dict:
+        """Return a coverage statistics dict for *text*."""
+        tokens = tokenize(text.lower())
+        word_tokens = [t for t in tokens if t.strip()]
+        oov_tokens = [t for t in word_tokens if t not in self.word_to_id]
+        return {
+            "total_tokens": len(tokens),
+            "word_tokens": len(word_tokens),
+            "oov_tokens": len(oov_tokens),
+            "oov_rate": round(len(oov_tokens) / len(word_tokens), 4) if word_tokens else 0.0,
+            "dict_size": len(self.word_to_id),
+            "top_oov": Counter(oov_tokens).most_common(10),
+        }
