@@ -1,0 +1,639 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-mono, monospace); background: transparent; }
+
+  .root { padding: 0 0 3rem; color: var(--color-text-primary); }
+
+  .hero { border-bottom: 0.5px solid var(--color-border-tertiary); padding: 2rem 0 1.5rem; margin-bottom: 2rem; }
+  .hero-tag { font-size: 11px; letter-spacing: 0.12em; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 0.5rem; }
+  .hero-title { font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: var(--color-text-primary); line-height: 1.2; }
+  .hero-title span { color: var(--color-text-secondary); font-weight: 400; }
+  .hero-sub { font-size: 13px; color: var(--color-text-secondary); margin-top: 0.6rem; line-height: 1.6; max-width: 600px; }
+
+  .section { margin-bottom: 2.5rem; }
+  .section-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 1rem; border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 0.4rem; }
+
+  /* Folder tree */
+  .tree { font-size: 13px; line-height: 2; color: var(--color-text-secondary); }
+  .tree .dir { color: var(--color-text-primary); font-weight: 500; }
+  .tree .desc { color: var(--color-text-tertiary); font-size: 11px; margin-left: 0.5rem; }
+  .tree-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2rem; }
+
+  /* Pipeline */
+  .pipeline { display: flex; flex-direction: column; gap: 0; }
+  .pipe-row { display: flex; align-items: stretch; }
+  .pipe-node { flex: 1; border: 0.5px solid var(--color-border-tertiary); border-radius: 6px; padding: 0.75rem 1rem; background: var(--color-background-secondary); }
+  .pipe-node.accent { background: var(--color-background-primary); border-color: var(--color-border-secondary); }
+  .pipe-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+  .pipe-desc { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; line-height: 1.5; }
+  .pipe-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .tag { font-size: 10px; padding: 2px 6px; border-radius: 3px; background: var(--color-background-tertiary); color: var(--color-text-secondary); border: 0.5px solid var(--color-border-tertiary); letter-spacing: 0.03em; }
+  .tag.blue { background: var(--color-background-info); color: var(--color-text-info); border-color: transparent; }
+  .tag.green { background: var(--color-background-success); color: var(--color-text-success); border-color: transparent; }
+  .tag.warn { background: var(--color-background-warning); color: var(--color-text-warning); border-color: transparent; }
+  .pipe-arrow { display: flex; align-items: center; justify-content: center; color: var(--color-text-tertiary); font-size: 14px; padding: 4px 0; }
+  .pipe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pipe-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+  /* Strategy matrix */
+  .matrix { border: 0.5px solid var(--color-border-tertiary); border-radius: 8px; overflow: hidden; }
+  .matrix-row { display: grid; grid-template-columns: 2fr 1.5fr 1.5fr 1.5fr 1fr; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .matrix-row:last-child { border-bottom: none; }
+  .matrix-row.header { background: var(--color-background-secondary); }
+  .mc { padding: 0.5rem 0.75rem; font-size: 11px; border-right: 0.5px solid var(--color-border-tertiary); }
+  .mc:last-child { border-right: none; }
+  .mc.header { font-weight: 500; color: var(--color-text-secondary); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .mc.bold { font-weight: 500; color: var(--color-text-primary); }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .dot.high { background: var(--color-text-success); }
+  .dot.mid { background: var(--color-text-warning); }
+  .dot.low { background: var(--color-text-danger); }
+
+  /* Roadmap */
+  .roadmap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .phase-card { border: 0.5px solid var(--color-border-tertiary); border-radius: 8px; padding: 1rem; background: var(--color-background-primary); }
+  .phase-num { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 0.4rem; }
+  .phase-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 0.5rem; }
+  .phase-items { list-style: none; }
+  .phase-items li { font-size: 11px; color: var(--color-text-secondary); padding: 3px 0; line-height: 1.5; }
+  .phase-items li::before { content: "→ "; color: var(--color-text-tertiary); }
+  .phase-items li.done::before { content: "✓ "; color: var(--color-text-success); }
+  .phase-items li.skip::before { content: "✗ "; color: var(--color-text-danger); }
+
+  /* Format spec */
+  .format-vis { font-family: var(--font-mono); font-size: 11px; display: flex; gap: 0; border: 0.5px solid var(--color-border-tertiary); border-radius: 6px; overflow: hidden; margin-bottom: 1rem; }
+  .fv-cell { padding: 0.4rem 0.5rem; border-right: 0.5px solid var(--color-border-tertiary); white-space: nowrap; }
+  .fv-cell:last-child { border-right: none; }
+  .fv-name { font-size: 10px; color: var(--color-text-tertiary); display: block; }
+  .fv-size { font-size: 11px; color: var(--color-text-secondary); font-weight: 500; }
+  .fv-cell.magic { background: var(--color-background-info); }
+  .fv-cell.crypto { background: var(--color-background-warning); }
+  .fv-cell.data { background: var(--color-background-success); }
+  .fv-cell.integrity { background: var(--color-background-danger); }
+
+  /* Advice boxes */
+  .advice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .advice-card { padding: 0.85rem 1rem; border-radius: 6px; border: 0.5px solid var(--color-border-tertiary); }
+  .advice-card.do { border-left: 2px solid var(--color-text-success); }
+  .advice-card.dont { border-left: 2px solid var(--color-text-danger); }
+  .advice-head { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.4rem; }
+  .advice-head.do { color: var(--color-text-success); }
+  .advice-head.dont { color: var(--color-text-danger); }
+  .advice-card ul { list-style: none; }
+  .advice-card li { font-size: 11px; color: var(--color-text-secondary); padding: 2px 0; line-height: 1.5; }
+
+  /* CLI */
+  .cli-block { background: var(--color-background-secondary); border-radius: 6px; padding: 1rem 1.25rem; border: 0.5px solid var(--color-border-tertiary); font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); line-height: 2; }
+  .cli-block .prompt { color: var(--color-text-tertiary); }
+  .cli-block .cmd { color: var(--color-text-primary); }
+  .cli-block .arg { color: var(--color-text-info); }
+  .cli-block .comment { color: var(--color-text-tertiary); font-style: italic; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 1.25rem; }
+  .tab { font-size: 12px; padding: 0.5rem 1rem; cursor: pointer; color: var(--color-text-tertiary); border-bottom: 2px solid transparent; margin-bottom: -0.5px; transition: color 0.15s; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+  .tab.active { color: var(--color-text-primary); border-bottom-color: var(--color-text-primary); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Priority table */
+  .pri-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pri-table th { text-align: left; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-tertiary); padding: 0.4rem 0.75rem; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .pri-table td { padding: 0.45rem 0.75rem; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); vertical-align: top; }
+  .pri-table tr:last-child td { border-bottom: none; }
+  .pri-num { font-weight: 500; color: var(--color-text-primary); font-size: 13px; min-width: 24px; display: inline-block; }
+  .pill { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+  .pill.mvp { background: var(--color-background-success); color: var(--color-text-success); }
+  .pill.v2  { background: var(--color-background-info); color: var(--color-text-info); }
+  .pill.v3  { background: var(--color-background-warning); color: var(--color-text-warning); }
+</style>
+
+<div class="root">
+  <h2 class="sr-only">AlphaMap next-generation architecture design document</h2>
+
+  <div class="hero">
+    <div class="hero-tag">Systems architecture · AlphaMap</div>
+    <div class="hero-title">Adaptive Hybrid Compression Engine <span>— Architecture v2</span></div>
+    <div class="hero-sub">Based on analysis of current codebase (v11 / am11 format). This document covers recommended project structure, pipeline design, module responsibilities, format spec, roadmap, and engineering constraints.</div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('structure')">Structure</button>
+    <button class="tab" onclick="showTab('pipeline')">Pipeline</button>
+    <button class="tab" onclick="showTab('strategy')">Strategy</button>
+    <button class="tab" onclick="showTab('semantic')">Semantic</button>
+    <button class="tab" onclick="showTab('format')">File format</button>
+    <button class="tab" onclick="showTab('cli')">CLI</button>
+    <button class="tab" onclick="showTab('roadmap')">Roadmap</button>
+    <button class="tab" onclick="showTab('advice')">Advice</button>
+  </div>
+
+  <!-- STRUCTURE TAB -->
+  <div id="tab-structure" class="tab-panel active">
+    <div class="section">
+      <div class="section-label">Recommended project structure</div>
+      <div class="tree tree-grid">
+        <div>
+          <div><span class="dir">alphamap/</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">core/</span><span class="desc">protocol, types, errors</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;__init__.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;types.py<span class="desc">CompressionResult, ArchiveHeader…</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;errors.py<span class="desc">AlphaMapError hierarchy</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;constants.py</div>
+          <div>&nbsp;&nbsp;<span class="dir">analysis/</span><span class="desc">file inspection</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;detector.py<span class="desc">MIME + magic bytes</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;entropy.py<span class="desc">Shannon entropy estimator</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;profiler.py<span class="desc">repetition + compressibility</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">strategy/</span><span class="desc">decision engine</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;selector.py<span class="desc">chooses pipeline</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;rules.py<span class="desc">scoring + heuristics</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;plugins.py<span class="desc">register custom strategies</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">semantic/</span><span class="desc">text encoding</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;tokenizer.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;dictionary.py<span class="desc">← already exists, refactor</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;bitpacking.py<span class="desc">← already exists</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;phrase.py<span class="desc">multi-word phrase detection</span></div>
+        </div>
+        <div>
+          <div>&nbsp;&nbsp;<span class="dir">backends/</span><span class="desc">compression algorithms</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;base.py<span class="desc">AbstractBackend ABC</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;zlib_backend.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;brotli_backend.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;lzma_backend.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;gzip_backend.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;semantic_backend.py<span class="desc">wraps semantic/</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">pipeline/</span><span class="desc">orchestration</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;engine.py<span class="desc">main Pipeline class</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;streaming.py<span class="desc">chunk-based I/O</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">crypto/</span><span class="desc">← already exists, expand</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;aes_gcm.py<span class="desc">AES-GCM + PBKDF2</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;integrity.py<span class="desc">CRC32 / HMAC verify</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">formats/</span><span class="desc">.amap container</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;writer.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;reader.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;header.py<span class="desc">struct pack/unpack</span></div>
+          <div>&nbsp;&nbsp;<span class="dir">benchmark/</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;runner.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;metrics.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;datasets.py</div>
+          <div>&nbsp;&nbsp;<span class="dir">cli/</span><span class="desc">← already exists, expand</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;main.py</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;commands/</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE TAB -->
+  <div id="tab-pipeline" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Core pipeline — data flow &amp; module responsibilities</div>
+      <div class="pipeline">
+
+        <div class="pipe-row">
+          <div class="pipe-node accent">
+            <div class="pipe-title">① Input</div>
+            <div class="pipe-desc">File path or byte stream. Supports stdin piping, file paths, and raw bytes API. Never loads entire file upfront.</div>
+            <div class="pipe-tags"><span class="tag">streaming</span><span class="tag">pathlib.Path</span><span class="tag">BinaryIO</span></div>
+          </div>
+        </div>
+        <div class="pipe-arrow">↓</div>
+
+        <div class="pipe-row">
+          <div class="pipe-grid">
+            <div class="pipe-node">
+              <div class="pipe-title">② File analyzer</div>
+              <div class="pipe-desc">Reads first 8KB only. Detects MIME type via magic bytes (python-magic). Classifies as: text / json / binary / archive / already-compressed.</div>
+              <div class="pipe-tags"><span class="tag blue">analysis.detector</span></div>
+            </div>
+            <div class="pipe-node">
+              <div class="pipe-title">③ Entropy estimator</div>
+              <div class="pipe-desc">Shannon entropy on sample. High entropy (≥7.5 bits/byte) → already compressed or random, skip. Low entropy → compressible.</div>
+              <div class="pipe-tags"><span class="tag blue">analysis.entropy</span></div>
+            </div>
+            <div class="pipe-node">
+              <div class="pipe-title">④ Profiler</div>
+              <div class="pipe-desc">Repetition score (most-common byte / total). Semantic detection (UTF-8 valid + word ratio). Produces FileProfile dataclass.</div>
+              <div class="pipe-tags"><span class="tag blue">analysis.profiler</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="pipe-arrow">↓ FileProfile</div>
+
+        <div class="pipe-row">
+          <div class="pipe-node accent">
+            <div class="pipe-title">⑤ Strategy selector</div>
+            <div class="pipe-desc">Consumes FileProfile. Runs registered scoring rules. Returns ordered list of (backend, params). First backend that succeeds is used; rest are fallbacks.</div>
+            <div class="pipe-tags"><span class="tag warn">strategy.selector</span><span class="tag warn">strategy.rules</span><span class="tag warn">strategy.plugins</span></div>
+          </div>
+        </div>
+        <div class="pipe-arrow">↓ PipelineConfig</div>
+
+        <div class="pipe-row">
+          <div class="pipe-grid">
+            <div class="pipe-node">
+              <div class="pipe-title">⑥ Semantic backend</div>
+              <div class="pipe-desc">Tokenize → train dict → bit-pack → optional secondary pass (brotli on token stream). Returns CompressedChunk.</div>
+              <div class="pipe-tags"><span class="tag">semantic_backend</span></div>
+            </div>
+            <div class="pipe-node">
+              <div class="pipe-title">⑥ Traditional backend</div>
+              <div class="pipe-desc">zlib / brotli / lzma / gzip. Each implements AbstractBackend: compress(stream) → stream, decompress(stream) → stream.</div>
+              <div class="pipe-tags"><span class="tag">backends/</span></div>
+            </div>
+            <div class="pipe-node">
+              <div class="pipe-title">⑥ Hybrid pipeline</div>
+              <div class="pipe-desc">Semantic encoding first, then brotli on the token-bit stream. Only worth doing when semantic ratio &gt; 1.3× alone. Benchmarked, not assumed.</div>
+              <div class="pipe-tags"><span class="tag">pipeline.engine</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="pipe-arrow">↓ compressed bytes + method_id</div>
+
+        <div class="pipe-row">
+          <div class="pipe-grid-2">
+            <div class="pipe-node">
+              <div class="pipe-title">⑦ Crypto layer (optional)</div>
+              <div class="pipe-desc">AES-256-GCM. PBKDF2-SHA256 key derivation (200k rounds). Salt + nonce generated fresh per file. Authenticated encryption — no separate HMAC needed. Pass-through if no key provided.</div>
+              <div class="pipe-tags"><span class="tag blue">crypto.aes_gcm</span></div>
+            </div>
+            <div class="pipe-node">
+              <div class="pipe-title">⑧ Integrity layer</div>
+              <div class="pipe-desc">CRC32 of plaintext before compression. Stored in header. Verified on decompress. Detects silent corruption independent of AES-GCM tag (which only covers ciphertext).</div>
+              <div class="pipe-tags"><span class="tag blue">crypto.integrity</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="pipe-arrow">↓</div>
+
+        <div class="pipe-row">
+          <div class="pipe-node accent">
+            <div class="pipe-title">⑨ Container packager — formats.writer</div>
+            <div class="pipe-desc">Writes .amap file: magic + version + flags byte + all header metadata + compressed (+ optionally encrypted) payload. Supports streaming write — never buffers full output in memory.</div>
+            <div class="pipe-tags"><span class="tag green">formats.writer</span><span class="tag green">formats.header</span></div>
+          </div>
+        </div>
+        <div class="pipe-arrow">↓</div>
+
+        <div class="pipe-row">
+          <div class="pipe-node accent">
+            <div class="pipe-title">⑩ Output — .amap file or stdout stream</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- STRATEGY TAB -->
+  <div id="tab-strategy" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Strategy selection matrix</div>
+      <div class="matrix">
+        <div class="matrix-row header">
+          <div class="mc header">Input type</div>
+          <div class="mc header">Primary backend</div>
+          <div class="mc header">Fallback</div>
+          <div class="mc header">Hybrid?</div>
+          <div class="mc header">Entropy cond.</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">Plain text / prose</div>
+          <div class="mc"><span class="dot high"></span>Semantic</div>
+          <div class="mc">brotli</div>
+          <div class="mc"><span class="tag green">yes</span></div>
+          <div class="mc">&lt; 5.0</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">JSON / logs / config</div>
+          <div class="mc"><span class="dot high"></span>brotli</div>
+          <div class="mc">zlib</div>
+          <div class="mc"><span class="tag">no</span></div>
+          <div class="mc">&lt; 6.0</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">Source code</div>
+          <div class="mc"><span class="dot mid"></span>brotli</div>
+          <div class="mc">Semantic</div>
+          <div class="mc"><span class="tag warn">maybe</span></div>
+          <div class="mc">&lt; 5.5</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">Binary / executables</div>
+          <div class="mc"><span class="dot high"></span>lzma</div>
+          <div class="mc">zlib</div>
+          <div class="mc"><span class="tag">no</span></div>
+          <div class="mc">&lt; 7.0</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">Already compressed</div>
+          <div class="mc"><span class="dot low"></span>store (copy)</div>
+          <div class="mc">—</div>
+          <div class="mc"><span class="tag">no</span></div>
+          <div class="mc">≥ 7.5</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">CSV / TSV</div>
+          <div class="mc"><span class="dot high"></span>brotli</div>
+          <div class="mc">zlib</div>
+          <div class="mc"><span class="tag">no</span></div>
+          <div class="mc">&lt; 5.5</div>
+        </div>
+        <div class="matrix-row">
+          <div class="mc bold">Repetitive XML</div>
+          <div class="mc"><span class="dot high"></span>Semantic</div>
+          <div class="mc">brotli</div>
+          <div class="mc"><span class="tag green">yes</span></div>
+          <div class="mc">&lt; 4.5</div>
+        </div>
+      </div>
+      <div style="margin-top:1rem; font-size:11px; color:var(--color-text-tertiary); line-height:1.8;">
+        <strong>Plugin architecture:</strong> Each backend registers with <code>@register_backend("name")</code>. Strategy rules are pure functions <code>score(profile: FileProfile) → float</code>. The selector picks the highest-scoring registered backend above a minimum threshold. Users can inject custom backends without touching core code.
+      </div>
+    </div>
+  </div>
+
+  <!-- SEMANTIC TAB -->
+  <div id="tab-semantic" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Semantic compression engine — design notes</div>
+
+      <div class="pipe-grid" style="margin-bottom:1.25rem;">
+        <div class="pipe-node">
+          <div class="pipe-title">Tokenizer (current → improve)</div>
+          <div class="pipe-desc">Current: whitespace split + regex. Keep this — it's correct. Add: phrase detection for 2–3 word sequences exceeding frequency threshold. Phrases get their own token IDs.</div>
+          <div class="pipe-tags"><span class="tag">semantic.tokenizer</span></div>
+        </div>
+        <div class="pipe-node">
+          <div class="pipe-title">Dictionary training</div>
+          <div class="pipe-desc">Current dict limit: 4096 (12 bits). This is correct. Improvement: sort by frequency × length, not just frequency. Longer common phrases save more bits per occurrence.</div>
+          <div class="pipe-tags"><span class="tag">semantic.dictionary</span></div>
+        </div>
+        <div class="pipe-node">
+          <div class="pipe-title">Bit packing (current → keep)</div>
+          <div class="pipe-desc">Current BitWriter / BitReader implementation is solid. Improvement: variable-width encoding — most-common tokens use fewer bits (proto-Huffman). Realistic 5–15% gain on dense text.</div>
+          <div class="pipe-tags"><span class="tag">semantic.bitpacking</span></div>
+        </div>
+      </div>
+
+      <div class="pipe-grid-2" style="margin-bottom:1rem;">
+        <div class="pipe-node accent">
+          <div class="pipe-title">OOV handling (current → fix)</div>
+          <div class="pipe-desc">Current: OOV sentinel + raw bytes. This bloats output for technical text (code, URLs, IDs). Fix: OOV escape + raw UTF-8 length prefix + bytes. Encode OOV as: <code>[OOV_ID][len:u16][raw_bytes]</code>. Avoids wasting bits on tokens that appear once.</div>
+        </div>
+        <div class="pipe-node accent">
+          <div class="pipe-title">Case encoding (current → keep)</div>
+          <div class="pipe-desc">Current 2-bit case encoding (lower / title / upper) is efficient and correct. Small improvement: add a MIXED case flag + store original for rare cases where word has internal caps (camelCase, acronyms with mixed case).</div>
+        </div>
+      </div>
+
+      <div class="pipe-node" style="margin-bottom:0.75rem;">
+        <div class="pipe-title">What NOT to build (semantic overengineering)</div>
+        <div class="pipe-desc" style="margin-top:4px;">Do not implement: LLM-based semantic compression, neural embeddings, context-dependent dictionaries that require model inference, or "meaning-preserving compression." These are either computationally prohibitive or not lossless. AlphaMap must be 100% lossless. The compression wins come from statistical patterns, not semantic understanding. Keep the "semantic" label but think of it as "token-frequency encoding."</div>
+        <div class="pipe-tags"><span class="tag">realistic engineering</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORMAT TAB -->
+  <div id="tab-format" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Proposed .amap container format (v2)</div>
+
+      <div class="format-vis">
+        <div class="fv-cell magic">
+          <span class="fv-name">MAGIC</span>
+          <span class="fv-size">4B</span>
+        </div>
+        <div class="fv-cell magic">
+          <span class="fv-name">VER</span>
+          <span class="fv-size">1B</span>
+        </div>
+        <div class="fv-cell magic">
+          <span class="fv-name">FLAGS</span>
+          <span class="fv-size">2B</span>
+        </div>
+        <div class="fv-cell crypto">
+          <span class="fv-name">SALT</span>
+          <span class="fv-size">16B</span>
+        </div>
+        <div class="fv-cell crypto">
+          <span class="fv-name">NONCE</span>
+          <span class="fv-size">12B</span>
+        </div>
+        <div class="fv-cell">
+          <span class="fv-name">HDR_LEN</span>
+          <span class="fv-size">4B</span>
+        </div>
+        <div class="fv-cell">
+          <span class="fv-name">HEADER</span>
+          <span class="fv-size">variable</span>
+        </div>
+        <div class="fv-cell data">
+          <span class="fv-name">PAYLOAD</span>
+          <span class="fv-size">variable</span>
+        </div>
+        <div class="fv-cell integrity">
+          <span class="fv-name">TAG</span>
+          <span class="fv-size">16B</span>
+        </div>
+      </div>
+
+      <div class="pipe-grid" style="margin-bottom:1rem;">
+        <div class="pipe-node">
+          <div class="pipe-title">Flags byte → expand to 2 bytes</div>
+          <div class="pipe-desc">
+            bit 0: embedded dict<br>
+            bit 1: zlib fallback (→ rename to "method" field)<br>
+            bit 2: encrypted<br>
+            bit 3: streaming chunks<br>
+            bit 4: crc32 present<br>
+            bits 5–15: reserved
+          </div>
+        </div>
+        <div class="pipe-node">
+          <div class="pipe-title">Header JSON → MessagePack</div>
+          <div class="pipe-desc">Current: JSON embedded header (human-readable but wasteful). Proposal: MessagePack binary serialization. Smaller, faster to parse. Keep JSON as debug option behind a flag.</div>
+        </div>
+        <div class="pipe-node">
+          <div class="pipe-title">Header fields (v2)</div>
+          <div class="pipe-desc">
+            method: u8 (enum)<br>
+            original_size: u64<br>
+            crc32: u32<br>
+            dict: optional bytes<br>
+            created_at: u32 unix<br>
+            filename: optional str<br>
+            chunk_size: u32
+          </div>
+        </div>
+      </div>
+
+      <div class="pipe-node accent">
+        <div class="pipe-title">Extension: .amap → rename from .am11</div>
+        <div class="pipe-desc">Magic bytes: <code>AMAP</code> (4 bytes). Version bump in byte 5 allows forward incompatibility detection. Tools should refuse to decompress future versions with a clear error, not silently fail. Maintain a CHANGELOG of format version changes.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLI TAB -->
+  <div id="tab-cli" class="tab-panel">
+    <div class="section">
+      <div class="section-label">CLI design — professional command surface</div>
+      <div class="cli-block">
+        <div><span class="prompt">$ </span><span class="cmd">alphamap compress</span> <span class="arg">input.txt output.amap</span>           <span class="comment"># auto-strategy</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap compress</span> <span class="arg">input.txt</span> <span class="arg">--strategy semantic</span>     <span class="comment"># force backend</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap compress</span> <span class="arg">input.txt</span> <span class="arg">-k password</span>             <span class="comment"># + AES-GCM</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap compress</span> <span class="arg">input.txt</span> <span class="arg">--no-embed-dict -d dict.json</span></div>
+        <div style="margin-top:0.5rem;"></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap decompress</span> <span class="arg">file.amap -o recovered.txt</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap decompress</span> <span class="arg">file.amap -k password</span></div>
+        <div style="margin-top:0.5rem;"></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap analyze</span> <span class="arg">input.txt</span>                          <span class="comment"># file profile report</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap analyze</span> <span class="arg">input.txt --json</span>                  <span class="comment"># machine-readable</span></div>
+        <div style="margin-top:0.5rem;"></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap inspect</span> <span class="arg">archive.amap</span>                       <span class="comment"># show header + meta</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap inspect</span> <span class="arg">archive.amap --json</span></div>
+        <div style="margin-top:0.5rem;"></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap train</span> <span class="arg">corpus.txt -o dict.json --size 8192</span></div>
+        <div style="margin-top:0.5rem;"></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap benchmark</span>                                    <span class="comment"># built-in datasets</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap benchmark</span> <span class="arg">myfile.txt --vs gzip,brotli,lzma</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">alphamap benchmark</span> <span class="arg">--output report.json</span></div>
+      </div>
+      <div style="margin-top:1rem; font-size:11px; color:var(--color-text-tertiary); line-height:1.8;">
+        Implementation note: use <strong>Click</strong> (not argparse) for the CLI layer. Click's decorator style, automatic help generation, and subcommand nesting are cleaner than argparse for a tool of this size. Keep one <code>cli/commands/</code> file per subcommand.
+      </div>
+    </div>
+  </div>
+
+  <!-- ROADMAP TAB -->
+  <div id="tab-roadmap" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Priority order for implementation</div>
+      <table class="pri-table" style="margin-bottom:1.5rem;">
+        <thead>
+          <tr><th>#</th><th>Item</th><th>Why first</th><th>Phase</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="pri-num">1</span></td><td>Refactor into modular package structure</td><td>Everything else depends on clean imports</td><td><span class="pill mvp">MVP</span></td></tr>
+          <tr><td><span class="pri-num">2</span></td><td>AbstractBackend ABC + existing backends registered</td><td>Enables strategy engine + testing each backend in isolation</td><td><span class="pill mvp">MVP</span></td></tr>
+          <tr><td><span class="pri-num">3</span></td><td>File analyzer + entropy estimator</td><td>Required for any intelligent strategy; fast to build</td><td><span class="pill mvp">MVP</span></td></tr>
+          <tr><td><span class="pri-num">4</span></td><td>Strategy selector (rule-based, not ML)</td><td>Core differentiator vs raw zlib/brotli</td><td><span class="pill mvp">MVP</span></td></tr>
+          <tr><td><span class="pri-num">5</span></td><td>Benchmark runner (vs gzip/brotli/lzma)</td><td>You need data to prove semantic compression is worthwhile</td><td><span class="pill mvp">MVP</span></td></tr>
+          <tr><td><span class="pri-num">6</span></td><td>Improve OOV encoding in semantic backend</td><td>Current OOV handling hurts on technical text</td><td><span class="pill mvp">MVP</span></td></tr>
+          <tr><td><span class="pri-num">7</span></td><td>.amap v2 format + inspect command</td><td>Format stability before broader usage</td><td><span class="pill v2">v2</span></td></tr>
+          <tr><td><span class="pri-num">8</span></td><td>Streaming chunk-based pipeline</td><td>Needed for large files; current loads full file</td><td><span class="pill v2">v2</span></td></tr>
+          <tr><td><span class="pri-num">9</span></td><td>Phrase-level dictionary (bigrams/trigrams)</td><td>Most realistic semantic gain beyond word tokens</td><td><span class="pill v2">v2</span></td></tr>
+          <tr><td><span class="pri-num">10</span></td><td>Hybrid pipeline (semantic → brotli)</td><td>Only after benchmarks confirm it's net positive</td><td><span class="pill v3">v3</span></td></tr>
+          <tr><td><span class="pri-num">11</span></td><td>Plugin API for custom backends</td><td>Extension point for community contributions</td><td><span class="pill v3">v3</span></td></tr>
+          <tr><td><span class="pri-num">12</span></td><td>PyPI packaging + CI</td><td>Production-grade distribution</td><td><span class="pill v3">v3</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="section-label">Release roadmap</div>
+      <div class="roadmap">
+        <div class="phase-card">
+          <div class="phase-num">MVP — v0.1</div>
+          <div class="phase-title">Foundation + measurement</div>
+          <ul class="phase-items">
+            <li class="done">Modular package structure</li>
+            <li class="done">Existing semantic + crypto code migrated</li>
+            <li>AbstractBackend ABC</li>
+            <li>File analyzer + entropy</li>
+            <li>Strategy selector (simple rules)</li>
+            <li>Benchmark suite vs gzip/brotli/lzma</li>
+            <li>Click-based CLI (compress, decompress, train, analyze)</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">v0.2 — Engineering quality</div>
+          <div class="phase-title">Robustness + format</div>
+          <ul class="phase-items">
+            <li>.amap v2 format finalized</li>
+            <li>inspect command</li>
+            <li>Streaming pipeline (chunk-based)</li>
+            <li>OOV encoding fix</li>
+            <li>Proper test suite (pytest + fixtures)</li>
+            <li>Error handling hierarchy</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">v0.3 — Semantic improvements</div>
+          <div class="phase-title">Better compression ratios</div>
+          <ul class="phase-items">
+            <li>Phrase-level dictionary (bigrams)</li>
+            <li>Variable-width token encoding</li>
+            <li>Case encoding improvements</li>
+            <li>Adaptive dict selection by file type</li>
+            <li>Benchmark-driven improvements only</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">v1.0 — Production</div>
+          <div class="phase-title">Distribution + extensibility</div>
+          <ul class="phase-items">
+            <li>Hybrid pipeline (data-proven)</li>
+            <li>Plugin API for custom backends</li>
+            <li>PyPI release</li>
+            <li>GitHub Actions CI</li>
+            <li>Docs (mkdocs or sphinx)</li>
+            <li>Changelog + semver</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADVICE TAB -->
+  <div id="tab-advice" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Engineering advice — what to do and what to skip</div>
+      <div class="advice-grid">
+        <div class="advice-card do">
+          <div class="advice-head do">Build these</div>
+          <ul>
+            <li>Benchmark first, optimize second. Let data drive decisions about which strategies actually win.</li>
+            <li>AbstractBackend ABC early — makes adding lzma/brotli backends trivially easy.</li>
+            <li>Pure-function strategy rules (score(profile) → float). Stateless = testable.</li>
+            <li>FileProfile dataclass — a single typed container for analysis output keeps the pipeline clean.</li>
+            <li>CRC32 integrity check independent of AES-GCM (detects corruption on unencrypted files).</li>
+            <li>Format versioning with hard rejection of unknown versions (fail loud, not silent).</li>
+            <li>Click-based CLI — decorator style is far cleaner than argparse for subcommands.</li>
+            <li>Streaming I/O from the start — refactoring later is painful.</li>
+          </ul>
+        </div>
+        <div class="advice-card dont">
+          <div class="advice-head dont">Skip these</div>
+          <ul>
+            <li>LLM/neural semantic compression — not lossless, not realistic for this project.</li>
+            <li>Custom Huffman tree in Python — brotli already does this better in C.</li>
+            <li>Async I/O — adds complexity, no throughput benefit for single-file compression.</li>
+            <li>GUI — out of scope for a systems compression tool at this stage.</li>
+            <li>zstd backend — great algorithm, but adds a C dependency; add in v3 only.</li>
+            <li>Dictionary federation / cloud sync — overengineered for v1.</li>
+            <li>ML-based strategy selection — rule-based scoring + benchmarks is sufficient and debuggable.</li>
+            <li>MessagePack header before v0.2 — JSON header is readable and fine for now.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="margin-top:1.5rem;" class="pipe-node accent">
+        <div class="pipe-title">Realistic compression expectation</div>
+        <div class="pipe-desc" style="margin-top:4px;">AlphaMap's semantic backend will beat gzip/brotli on highly repetitive text with a small vocabulary (legal docs, logs with repeated fields, config files). It will lose on source code, JSON with varied keys, and any text with many OOV tokens. This is fine — that's why you have the strategy selector and fallbacks. The goal is not "always better than brotli" but "never worse than the best of gzip/brotli/lzma" with sometimes significant wins on target workloads. The benchmark system will prove this with real data.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
