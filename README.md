@@ -330,4 +330,4 @@ See [MIGRATION.md](MIGRATION.md) for the step-by-step v1 → v2 refactor guide.
 
 ## License
 
-MIT © 2026 Your Name
+MIT © 2026 SHRE RAAM P J.

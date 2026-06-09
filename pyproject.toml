@@ -39,8 +39,8 @@ dev = [
 alphamap = "alphamap.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/alphamap"
-Issues   = "https://github.com/YOUR_USERNAME/alphamap/issues"
+Homepage = "https://github.com/SHRE-RAAM-P-J/Alpha_Map"
+Issues   = "https://github.com/SHRE-RAAM-P-J/alphamap/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
